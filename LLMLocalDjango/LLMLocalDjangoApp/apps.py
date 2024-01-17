@@ -14,7 +14,10 @@ class LlmlocaldjangoappConfig(AppConfig):
     name = "LLMLocalDjangoApp"
 
     def ready(self) -> None:
-        ollama = Ollama(base_url="http://localhost:11434", model="llama2")
+        from LLMLocalDjangoApp.models import Setting
+
+        base_url = Setting.objects.all().filter(setting_name="llm_url")[0].setting_value
+        ollama = Ollama(base_url="base_url", model="llama2")
 
         # get all the PDFs in the documents folder
         directory = "./LLMLocalDjangoApp/static/LLMLocalDjangoApp/documents"
