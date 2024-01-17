@@ -1,0 +1,27 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'LLMLocalDjangoApp/style.css' %}">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Local LLM Chat</title>
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <script src="https://unpkg.com/htmx.org@latest"></script>
+
+    <div id="container">
+        <div id="main-content">
+            <h1>Local LLM Chat</h1>
+            <div id="response-history" hx-get="/chat-messages/" hx-trigger="load, send-event from:body" hx-indicator="loading-get">
+            </div>
+        </div>
+    </div>
+    <div id="chat-form">
+        <form hx-post="{% url 'llm_interaction' %}" hx-swap="none">
+            <textarea id="message-text" name="message" placeholder="Type your message here..."></textarea>
+            <button type="submit">Send <p class='htmx-indicator'>loading...</p></button>
+            
+        </form>
+    </div>
+</body>
+</html>
