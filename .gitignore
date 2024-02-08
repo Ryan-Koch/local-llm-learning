@@ -156,6 +156,16 @@ cython_debug/
 # No PDFs plz
 *.pdf
 
+# Ignore local config files
+*.local
+
+# Ignore vector store folder
+vector_store/
+
+# Ignore my auth token stuff
+token.json
+client_secret_gdocs.json
+
 # No DS store plz
 .DS_Store
 
