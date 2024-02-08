@@ -25,9 +25,9 @@ def llm_interaction(request):
     timestamp_chat = datetime.datetime.utcnow()
 
     vs_c = vector_store.VectorStore()
-    store = vs_c.get_store()
-    retriver_mmr = store.as_retriever(search_type="mmr")
-    relevant_docs = retriver_mmr.get_relevant_documents(chat_input)
+    store = vs_c.initialize_store()
+    relevant_docs = store.similarity_search(chat_input, k=10)
+
     # template prompt, we inject both what was found in the relevant docs search and the chat input (as the question to be answered).
     prompt = f"You answer questions about the contents of decision record documents used by the Truss organization. As you answer these questions don't make information up, if you can't find it or don't know, it's okay to say so. Given the following documentation: {relevant_docs}\n What is the best answer to this question: {chat_input}?"
 
