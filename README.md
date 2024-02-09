@@ -16,7 +16,9 @@ To run this thing you need to do the following:
 7. Setup gdocs authentication: [Lang chain docs](https://python.langchain.com/docs/integrations/document_loaders/google_drive)
 8. Run the server `python manage.py runserver`
 
-There is a `default_data.json` that seeks to add the initial `Settings` objects in the DB for you. It uses default values based on what I had going on using Ollama locally. You can change these values though in the Django Admin app at any time.
+# What can this do?
+- Currently it can take a folder ID from google drive and ingest all of the documents within it (not set to do recursive at the moment, but that's a flip of a flag to enable) and create a vector data store.
+- It has a django app that will store questions asked to the LLM and is able to do a top k similarity search on the vector store to get answers.
 
 # Some issues I'm thinking about
 - The way you ask questions matters a lot and can impact the results found via the relevant document search. I'd like to find some user friendly ways to create some forgiveness here.
