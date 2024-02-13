@@ -1,7 +1,6 @@
 import configparser
 import os
 
-# from langchain.document_loaders import GoogleDriveLoader
 from langchain_community.document_loaders import GoogleDriveLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.llms import Ollama
@@ -43,6 +42,8 @@ def main():
     # Splitting the docs up
     print("Splitting documents...")
     text_splitter = SemanticChunker(OllamaEmbeddings(base_url=base_url, model="llama2"))
+    # Okay, so if you don't do this locally you will get an index error when this runs: https://github.com/langchain-ai/langchain/compare/master...psaegert:langchain:master
+    # hopefully this or something similar will appear in a PR on the library repo soon.
     documents = text_splitter.split_documents(data)
 
     # Initialize the vector store
