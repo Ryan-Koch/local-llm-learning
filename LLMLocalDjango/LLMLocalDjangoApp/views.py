@@ -1,14 +1,20 @@
 import datetime
 import uuid
-
 import requests
+import logging
+
+
 from django.http import HttpResponse
 from django.shortcuts import render
 
-from LLMLocalDjangoApp.models import Setting
+from langchain_community.document_transformers import (
+    LongContextReorder,
+)
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_community.llms import Ollama
+
 
 from LLMLocalDjangoApp.models import ChatSession
-
 from LLMLocalDjangoApp import vector_store
 
 
@@ -17,19 +23,35 @@ def display_base(request):
 
 
 def llm_interaction(request):
-    url_setting = Setting.objects.all().filter(setting_name="llm_url")[0].setting_value
+    # Get at the vector store and the base URL for the LLM API.
+    vs_c = vector_store.VectorStore()
+    url_setting = vs_c.get_base_url()
+    url_for_request = url_setting + "/api/generate"
+
+    # This is the chat input from the user.
     chat_input = request.POST["message"]
-
-    url_for_request = url_setting + "api/generate"
-
+    # Save a timestamps for the chat input (gets saved in the chat model)
     timestamp_chat = datetime.datetime.utcnow()
 
-    vs_c = vector_store.VectorStore()
+    # get access to the chroma store
     store = vs_c.initialize_store()
-    relevant_docs = store.similarity_search(chat_input, k=10)
+    # using MMR search for now: https://python.langchain.com/docs/modules/data_connection/retrievers/vectorstore#maximum-marginal-relevance-retrieval
+    retriever = store.as_retriever(search_type="mmr")
+
+    relevant_docs = retriever.get_relevant_documents(query=chat_input)
+    reordering = LongContextReorder()
+    # This attempts to put the most relevant stuff first or last, so the LLM handles the context better. Ref: https://arxiv.org/pdf/2307.03172.pdf
+    reordered_docs = reordering.transform_documents(relevant_docs)
 
     # template prompt, we inject both what was found in the relevant docs search and the chat input (as the question to be answered).
-    prompt = f"You answer questions about the contents of decision record documents used by the Truss organization. As you answer these questions don't make information up, if you can't find it or don't know, it's okay to say so. Given the following documentation: {relevant_docs}\n What is the best answer to this question: {chat_input}?"
+    prompt = f"""You answer questions about the contents of decision record documents used by the Truss organization. 
+    Please provide links and titles for the source documentation you reference to come up with your response. 
+    As you answer don't make information up, if you can't find it or don't know, it's okay to say so. 
+    Given the following documentation: 
+    \n ==== {reordered_docs}\n====\n 
+    What is the best answer to this question: {chat_input}"""
+
+    print(prompt)
 
     # This dumps out the whole LLM response in one go instead of doing the streaming text thing that folks might be used to seeing from ChatGPT. Maybe later I'll try and do that too, since HTMX can support the interaction.
     response = requests.post(
@@ -51,7 +73,7 @@ def llm_interaction(request):
             timestamp_chat=timestamp_chat,
             timestamp_response=response_timestamp,
         )
-    # Okay, so a hacky thing I did is have this POST save stuff to the DB and then use the HX-Trigger event to trigger a GET to the chats_for_session view below.
+    # This sends an HX-Trigger header, which signals the front end to send an request to the server to get the chats that have been saved to the DB so far.
     return HttpResponse(
         response.json()["response"], headers={"HX-Trigger": "send-event"}
     )
