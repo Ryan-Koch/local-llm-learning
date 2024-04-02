@@ -1,18 +1,10 @@
 import datetime
 import uuid
 import requests
-import logging
-
+import configparser
 
 from django.http import HttpResponse
 from django.shortcuts import render
-
-from langchain_community.document_transformers import (
-    LongContextReorder,
-)
-from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain_community.llms import Ollama
-
 
 from LLMLocalDjangoApp.models import ChatSession
 from LLMLocalDjangoApp import vector_store
@@ -28,6 +20,9 @@ def llm_interaction(request):
     url_setting = vs_c.get_base_url()
     url_for_request = url_setting + "/api/generate"
 
+    global_config = configparser.ConfigParser()
+    global_config.read("global_settings.local")
+
     # This is the chat input from the user.
     chat_input = request.POST["message"]
     # Save a timestamps for the chat input (gets saved in the chat model)
@@ -35,25 +30,29 @@ def llm_interaction(request):
 
     # get access to the chroma store
     store = vs_c.initialize_store()
-    # using MMR search for now: https://python.langchain.com/docs/modules/data_connection/retrievers/vectorstore#maximum-marginal-relevance-retrieval
+    # using MMR search for now:
+    # https://python.langchain.com/docs/modules/data_connection/retrievers/vectorstore#maximum-marginal-relevance-retrieval
     retriever = store.as_retriever(search_type="mmr")
 
     relevant_docs = retriever.get_relevant_documents(query=chat_input)
-    reordering = LongContextReorder()
-    # This attempts to put the most relevant stuff first or last, so the LLM handles the context better. Ref: https://arxiv.org/pdf/2307.03172.pdf
-    reordered_docs = reordering.transform_documents(relevant_docs)
 
-    # template prompt, we inject both what was found in the relevant docs search and the chat input (as the question to be answered).
+    docs_for_prompt = []
+    for doc in relevant_docs:
+        docs_for_prompt.append(f"Title: {doc.metadata['title']}\n\n{doc.page_content}\n\nSource: {doc.metadata['source']}\n\n")
+
+    text_for_prompt = "\n\n".join(docs_for_prompt)
+    print(text_for_prompt)
+
+    # template prompt, we inject both what was found in the relevant docs search and the chat input (as the question
+    # to be answered).
     prompt = f"""You answer questions about the contents of decision record documents used by the Truss organization. 
     Please provide links and titles for the source documentation you reference to come up with your response. 
-    As you answer don't make information up, if you can't find it or don't know, it's okay to say so. 
-    Given the following documentation: 
-    \n ==== {reordered_docs}\n====\n 
-    What is the best answer to this question: {chat_input}"""
+    As you answer don't make information up, if you can't find it or don't know, answer that you don't know. 
+    What is the answer to the following question: {chat_input}? Please make use of the following context to 
+    inform how you respond. \n{text_for_prompt}\n\n"""
 
-    print(prompt)
-
-    # This dumps out the whole LLM response in one go instead of doing the streaming text thing that folks might be used to seeing from ChatGPT. Maybe later I'll try and do that too, since HTMX can support the interaction.
+    # This dumps out the whole LLM response in one go instead of doing the streaming text thing that folks might be
+    # used to seeing from ChatGPT. Maybe later I'll try and do that too, since HTMX can support the interaction.
     response = requests.post(
         url_for_request, json={"prompt": prompt, "model": "llama2", "stream": False}
     )
@@ -73,7 +72,9 @@ def llm_interaction(request):
             timestamp_chat=timestamp_chat,
             timestamp_response=response_timestamp,
         )
-    # This sends an HX-Trigger header, which signals the front end to send an request to the server to get the chats that have been saved to the DB so far.
+
+    # This sends an HX-Trigger header, which signals the front end to send an request to the server to get the chats
+    # that have been saved to the DB so far.
     return HttpResponse(
         response.json()["response"], headers={"HX-Trigger": "send-event"}
     )

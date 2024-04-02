@@ -4,15 +4,13 @@ from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 
 
-# This is hear so we can generate a store during application start up and then use it other places.
+# This is here to generate a store during application start up and then use it other places.
 class VectorStore:
     vector_store = None
 
     # Used in apps.py to create the store.
     def create_store(self, all_splits, oembed):
-        base_url = self.get_base_url()
 
-        oembed = OllamaEmbeddings(base_url=base_url, model="llama2")
         VectorStore.vector_store = Chroma.from_documents(
             all_splits, oembed, persist_directory="./vector_store"
         )
